@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>StepFun 实时语音验证版</title>
+    <style>
+      :root {
+        --bg: #f6f7f9;
+        --panel: #ffffff;
+        --line: #e3e6ea;
+        --ink: #1c2430;
+        --muted: #6b7280;
+        --accent: #2f6fed;
+        --danger: #d64545;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        background: var(--bg);
+        color: var(--ink);
+      }
+      header {
+        padding: 20px 24px;
+        border-bottom: 1px solid var(--line);
+        background: var(--panel);
+        display: flex;
+        align-items: center;
+        gap: 16px;
+      }
+      header h1 {
+        margin: 0;
+        font-size: 18px;
+      }
+      header .status {
+        margin-left: auto;
+        color: var(--muted);
+        font-size: 14px;
+      }
+      main {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 24px;
+        display: grid;
+        gap: 16px;
+      }
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 16px;
+      }
+      .toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+      }
+      button,
+      input {
+        font: inherit;
+      }
+      button {
+        border: 1px solid var(--line);
+        background: #ffffff;
+        border-radius: 6px;
+        padding: 8px 12px;
+        cursor: pointer;
+      }
+      button:hover:not(:disabled) {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+      button:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+      }
+      #connect-btn {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #ffffff;
+      }
+      .vad-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--muted);
+        font-size: 14px;
+      }
+      .text-row {
+        display: flex;
+        gap: 8px;
+      }
+      #text-input {
+        flex: 1;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 8px 10px;
+      }
+      .transcripts {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+      @media (max-width: 640px) {
+        .transcripts {
+          grid-template-columns: 1fr;
+        }
+      }
+      .transcript {
+        min-height: 90px;
+        white-space: pre-wrap;
+        line-height: 1.6;
+      }
+      .tip {
+        color: var(--muted);
+        font-size: 13px;
+      }
+      #log {
+        max-height: 180px;
+        overflow: auto;
+        font-size: 12px;
+        color: var(--muted);
+        line-height: 1.5;
+      }
+      h2 {
+        margin: 0 0 10px;
+        font-size: 14px;
+        color: var(--muted);
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>StepFun 实时语音验证版</h1>
+      <span id="status" class="status">未连接</span>
+    </header>
+
+    <main>
+      <section class="panel">
+        <div class="toolbar">
+          <button id="connect-btn">开始对话</button>
+          <label class="vad-row">
+            <input type="checkbox" id="vad-toggle" checked />
+            服务端 VAD（自动判断说话结束）
+          </label>
+          <button id="commit-btn" disabled>提交语音</button>
+          <button id="clear-btn" disabled>清空重录</button>
+          <span class="tip">关闭 VAD 后使用"提交语音"手动结束输入</span>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>文本调试通道</h2>
+        <div class="text-row">
+          <input id="text-input" type="text" placeholder="输入文字消息并回车" disabled />
+          <button id="send-btn" disabled>发送</button>
+        </div>
+        <p class="tip">免麦克风也能跑通链路，同时可作为转写结果的对照。</p>
+      </section>
+
+      <section class="transcripts">
+        <div class="panel">
+          <h2>用户转写</h2>
+          <div id="user-transcript" class="transcript"></div>
+        </div>
+        <div class="panel">
+          <h2>AI 回复</h2>
+          <div id="ai-transcript" class="transcript"></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>事件日志</h2>
+        <div id="log"></div>
+      </section>
+    </main>
+
+    <script src="/assets/app.js"></script>
+  </body>
+</html>
