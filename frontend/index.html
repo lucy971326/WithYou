@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WithYou</title>
+  </head>
+  <body>
+    <div id="app">
+      <header>
+        <h1>WithYou</h1>
+        <button type="button" id="open-btn">打开视频</button>
+        <span id="status"></span>
+      </header>
+      <main>
+        <video id="player" controls playsinline></video>
+        <p id="empty">点「打开视频」，在系统窗口里选一部带软字幕的 mkv / mp4。浏览器直接解原片，不解的编码（HEVC / 10bit）会只有声音。</p>
+      </main>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

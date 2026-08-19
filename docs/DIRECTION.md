@@ -17,45 +17,80 @@
 
 ---
 
-## 2. 计划方向（大体怎么做）
+## 2. 技术栈（已拍板）
 
-**一句话**：做一个"AI 陪伴你看番/看剧"的 Web 应用 —— 拖入视频 + 字幕，Realtime 模型结合画面与剧情，在你吐槽时低延迟秒回，且绝不剧透。
+> **Relay = 中继**。不是框架名。浏览器不能拿 API Key 直连模型，所以本机 Go 夹在中间：一边接浏览器的音频/抓帧/剧情文本，一边用裸 WebSocket 跟 Qwen Realtime 对话。Key 不出本机，Qwen 专属塞图协议也收敛在这一层。
+
+形态：本机 Web 应用（Go 听 `localhost`），不是公网上传站。
+
+| 层 | 选型 | 不选 / 为什么 |
+|----|------|----------------|
+| 后端语言 | Go 1.22+ | — |
+| HTTP | 标准库 `net/http` | 不上 Gin/Echo/Chi。就几个接口 + 一块中继 |
+| WebSocket | `github.com/coder/websocket`（协议库） | 只当传输，不当厂商 SDK |
+| Qwen Realtime | **自己写 WS 事件帧**，对 `wss://dashscope-intl.aliyuncs.com/api-ws/v1/realtime` | 不用 dashscope Realtime SDK |
+| DeepSeek 富化 | **OpenAI 官方 Go SDK**（`openai-go`），baseURL 指到 `https://api.deepseek.com` | Realtime 不用这套 SDK |
+| 抽字幕 | 本机 `ffmpeg`，Go `os/exec` 调 | 不绑 goav 之类 |
+| 选文件 | Go 弹 Windows 原生选框，拿真实路径 | 浏览器拖文件拿不到真路径，也不上传整片 |
+| 播放 | 浏览器 `<video src="/media">`，Go 按 HTTP Range 读本机文件 | 视频不进服务器磁盘副本，不是网盘 |
+| 字幕解析 | 自己写 SRT/ASS 小解析器 | `forward/` 里 Python 版当对照，不进正式路径 |
+| 缓存 | 本地目录，按文件内容 hash 存剧情 JSON | V0 不上 Postgres / Redis |
+| 前端 | Vite + TypeScript，无框架 | 不上 React/Vue。一页看片，核心是 video / Web Audio / WS |
+| 配置 | 环境变量（`QWEN_API_KEY` / `DEEPSEEK_API_KEY` / 模型名） | 不上 Viper |
+| 实验代码 | `forward/` 保留作对照，正式实现全 Go | pyproject 里的 dashscope/openai 不进生产 |
+
+**目录**：
+```
+backend/cmd/server/              入口
+backend/internal/config/         读环境变量
+backend/internal/library/        选文件 + /media Range
+backend/internal/plot/           ffmpeg 抽轨 + 解析 + DeepSeek 富化 + 缓存
+backend/internal/realtime/       浏览器 ↔ Qwen 的 WS 中继
+frontend/                        Vite + TS
+```
+
+---
+
+## 3. 计划方向（大体怎么做）
+
+**一句话**：做一个"AI 陪伴你看番/看剧"的本机 Web 应用 —— 打开带软字幕轨的视频，Realtime 模型结合画面与剧情，在你吐槽时低延迟秒回，且绝不剧透。
 
 **整体架构（三段式）**：
 ```
-Web 前端（浏览器）
-   │  音频流 + 开口抓帧（画面帧） + 剧情上下文
+Web 前端（浏览器，只负责播控 / 麦 / 抓帧）
+   │  音频流 + 开口前 500ms 抓帧 + 剧情上下文
    ▼
-Go Relay（后端中转，防 Key 泄露 / 统一入口 / 供应商可换）
-   │  透传（音频对齐 OpenAI 协议，图片走 Qwen input_image_buffer.append）
+Go 中继（本机：选文件 / 抽字幕 / 富化 / Realtime 转发）
+   │  自己写 WS：音频对齐 OpenAI 协议，图片走 Qwen input_image_buffer.append
    ▼
 云端 Realtime 模型（Qwen3.5-Omni-Plus-Realtime）
 ```
 
 ### 核心链路
-1. **离线富化**（拖入视频时跑一次）：
-   - 解析字幕（SRT/ASS）→ 联网搜索了解本集 → LLM 富化 → 生成**剧情 JSON**（片名/世界观/角色/分段剧情/防剧透边界）
-   - 富化目的是补"字幕缺失的世界知识"（画面、动机、情感、梗）。
+1. **离线富化**（打开视频时跑一次，全在 Go）：
+   - 前端点「打开」→ Go 弹系统选框拿到本机路径 → `ffmpeg` 抽软字幕轨 → 解析时间轴 → DeepSeek **一次结构化生成**（schema 失败再重试）→ **剧情 JSON**
+   - 浏览器同时用 `/media` Range 播这个本机文件（不上传）
+   - 富化目的是补"字幕缺失的世界知识"（画面、动机、情感、梗）。V0 不上完整 Agent，也不上用户记忆。
 2. **运行时注入**（分级、省 token、防剧透）：
    - 开始播放 → 注入**整体剧情总览**（压缩版）
    - 每到一个剧情段 → 注入**该段文本剧情 + 该段典型画面一帧**
-   - 用户开口 → **实时抓当前帧**补"此刻"
+   - 用户开口 → 从环形缓冲取 **开口前 500ms** 的帧（不是当前帧）
 3. **回答**：Realtime 结合 剧情上下文 + 画面 + 用户语音，流式秒回。
 
 ### 实现边界决策（认可后定稿）
 > 前端、后端（Go）、Realtime 三方职责与注入通道的明确约定。
 
-1. **富化必须走后端**：字幕解析可前端做（JS 库如 srt-parser-2），但 **LLM 富化调 API 必须经 Go 后端**（key 不能进浏览器）。链路：前端解析字幕 → POST 字幕给 Go → Go 调富化 LLM → 返回剧情 JSON。
+1. **抽轨 / 解析 / 富化全走 Go**：前端不上传文件。Go 弹系统选框拿本机路径 → `ffmpeg -map 0:s:0` 抽软字幕 → 解析为带时间戳的对白 JSON → OpenAI SDK 调 DeepSeek → 回剧情 JSON。Key 不能进浏览器。播放走 `/media` Range。
 2. **剧情 JSON 建议后端缓存**：一集只富化一次，之后同集直接复用（文件/内存缓存），避免重复消耗 token。前端拿到后缓存使用，刷新不重复富化。
-3. **富化 LLM ≠ Realtime 模型**：富化用便宜的文本模型（Qwen 的 flash 系列）即可，不必用昂贵的 realtime —— 后台慢脑与前台快脑是两个独立调用。
+3. **富化 LLM ≠ Realtime 模型**：富化用 DeepSeek（V4-Flash 或同级文本模型），不必用昂贵的 realtime —— 后台慢脑与前台快脑是两个独立调用、两套 key。
 4. **两条注入通道别混**：
    - 剧情增量（文本）→ `conversation.item.create` 塞 `input_text`
    - 当前帧截图 → `input_image_buffer.append`（**不是** conversation.item.create，实测会被拒）
 5. **两个独立触发节奏**：
    - 剧情增量注入：**跨剧情段**时触发（低频，每几分钟一次）
    - 实时抓帧：**用户开口（VAD `speech_started`）** 时触发（高频，每次吐槽）
-6. **截图时机**：官方要求图片在 `speech_stopped` 前发送，所以抓帧须紧跟 `speech_started`；配合环形缓存补开看前的几帧。
-7. **仅接受"带软字幕轨的视频"**：V0 输入范围锁定为内嵌软字幕轨（mkv/mp4）的视频，`ffmpeg -map 0:s:0` 自动提取字幕 → 富化。**原因**：软字幕轨与视频打包、时间轴天然 100% 对齐，从源头消灭"字幕对不齐"问题；用户无需额外下载字幕文件，体验简单。V0 **不支持**：硬字幕（需 OCR）、无字幕裸片（需 ASR）、外挂字幕文件（无法保证与视频对齐）。后续可作为适配器扩展。
+6. **截图时机**：官方要求图片在 `speech_stopped` 前发送，所以抓帧须紧跟 `speech_started`；环形缓冲取 **开口前 500ms** 那一帧（情绪触发点，不是事后静态画面）。
+7. **仅接受"带软字幕轨的视频"**（已拍板）：V0 输入范围锁定为内嵌软字幕轨（mkv/mp4）的视频，Go 侧 `ffmpeg -map 0:s:0` 自动提取字幕 → 富化。**原因**：软字幕轨与视频打包、时间轴天然 100% 对齐，从源头消灭"字幕对不齐"问题；用户无需额外下载字幕文件。V0 **不支持**：硬字幕（需 OCR）、无字幕裸片（需 ASR）、外挂字幕文件（无法保证与视频对齐）。后续可作为适配器扩展。
 8. **剧情段定位容忍误差**：软字幕轨虽对齐，但不同压制帧率/剪辑仍可能引入偏移。V0 提供用户手动字幕偏移微调（±几秒）；V1 再用"对白内容匹配剧情段 key_dialogue"做自适应定位。
 
 ### 关键技术决策（改过的）
@@ -66,7 +101,7 @@ Go Relay（后端中转，防 Key 泄露 / 统一入口 / 供应商可换）
 
 ---
 
-## 3. 已验证的成果（可行性结论）
+## 4. 已验证的成果（可行性结论）
 
 > 以下均为真实跑通的实验（qwen3.5-omni-plus-realtime，麦克风 + 图像注入）。
 
@@ -90,12 +125,12 @@ Go Relay（后端中转，防 Key 泄露 / 统一入口 / 供应商可换）
 
 ---
 
-## 4. 潜在问题与当前解方
+## 5. 潜在问题与当前解方
 
 | 潜在问题 | 现象/风险 | 当前解方 |
 |---------|----------|---------|
 | **剧情幻觉** | 裸模型自信编造集数/剧情/角色互动 | 离线富化剧情 JSON 作为"事实源"注入；Realtime 只在该范围说话；防剧透边界 `known_until` |
-| **冷门/新番识别差** | 训练知识不足，认不出角色/世界观 | 联网搜索 + LLM 富化补背景，运行时注入 |
+| **冷门/新番识别差** | 训练知识不足，认不出角色/世界观 | V0：字幕 + DeepSeek 一次结构化生成补背景；联网搜索/Agent 后置 |
 | **图像协议坑** | `conversation.item.create` 塞图被拒 | 统一走 `input_image_buffer.append`；JPG/体积合规 |
 | **Realtime 非全知** | 当作"大脑"会露馅 | 双脑：Realtime = 五官/秒回；复杂认知 = 后台离线 LLM（富化阶段） |
 | **身份精度** | 多角色关系会串 | 剧情 JSON 提供精确实体/关系，减少裸猜 |
@@ -104,10 +139,10 @@ Go Relay（后端中转，防 Key 泄露 / 统一入口 / 供应商可换）
 
 ---
 
-## 5. 下一步（V0 清单）
-1. **Go Relay**：透明中转（浏览器↔Go↔Qwen），先跑通最小骨架。
-2. **Web 前端**：LinearResampler、环形缓冲突发抓帧、Web Audio 排队/打断、Ducking。
-3. **离线富化器**：字幕→LLM→剧情 JSON（可含联网搜索）。
-4. **注入编排**：剧情总览 + 分段 + 开口抓帧三合一。
+## 6. 下一步（V0 清单）
+1. **Go 中继**：透明转发（浏览器↔本机 Go↔Qwen），先跑通最小骨架。裸 WS，无 SDK。
+2. **Web 前端**：Vite + TS。LinearResampler、环形缓冲突发抓帧、Web Audio 排队/打断、Ducking。
+3. **离线富化器**：系统选框拿路径 → ffmpeg 抽软字幕 → DeepSeek（OpenAI SDK）一次结构化生成（失败重试）→ 剧情 JSON。
+4. **注入编排**：剧情总览 + 分段 + 开口前 500ms 抓帧三合一。
 
 > 本阶段验证已完成，以下进入正式实现。模型、协议、可用性均已确认。

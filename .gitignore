@@ -1,6 +1,13 @@
 # secrets
 .env
 
+# frontend
+frontend/node_modules/
+frontend/dist/
+
+# backend
+backend/tmp/
+
 # python
 __pycache__/
 *.pyc
