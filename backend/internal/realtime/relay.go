@@ -11,16 +11,19 @@ import (
 	"github.com/coder/websocket"
 )
 
-// maxWSBytes 覆盖官方图片上限（base64 ≤ 256KB）再留余量。coder/websocket 默认只读 32768。
+// maxWSBytes 覆盖官方图上限（base64 ≤256KB）。库默认只读 32KB，不改会 1009。
 const maxWSBytes = 1 << 20
 
-// Relay 浏览器 ↔ Qwen 的 WS 中继。过滤客户端 type，逐条打日志。
+// Relay 是一次会话：浏览器 WS ↔ Qwen WS。
+// Key 只在这边用来拨号；事件本身不改写，只过白名单。
 type Relay struct {
 	apiKey string
 	model  string
 	base   string
 }
 
+// 输入：ctx、已升级的浏览器 WS。输出：会话结束原因。
+// 拨通 Qwen，起两条单向泵；任一方向先死即返回。
 func (r *Relay) Serve(ctx context.Context, browser *websocket.Conn) error {
 	browser.SetReadLimit(maxWSBytes)
 	qwenURL, err := r.dialURL()
@@ -44,6 +47,8 @@ func (r *Relay) Serve(ctx context.Context, browser *websocket.Conn) error {
 	defer qwen.Close(websocket.StatusNormalClosure, "done")
 	log.Printf("realtime qwen connected read_limit=%d", maxWSBytes)
 
+	// Read 会堵住，必须拆成两条单向泵才能同时听两边。
+	// 浏览器侧不信任 → filter；Qwen 侧原样透传。
 	errc := make(chan error, 2)
 	go func() {
 		errc <- r.pump(ctx, "browser→qwen", browser, qwen, true)
@@ -56,6 +61,8 @@ func (r *Relay) Serve(ctx context.Context, browser *websocket.Conn) error {
 	return err
 }
 
+// 输入：ctx、方向名、源/目标连接、是否过滤客户端。输出：读或写失败。
+// 从 src 读一条写到 dst；filter 时未知 type / 图塞进 item.create 则 DROP。
 func (r *Relay) pump(ctx context.Context, dir string, src, dst *websocket.Conn, filter bool) error {
 	for {
 		typ, data, err := src.Read(ctx)
@@ -89,12 +96,15 @@ func (r *Relay) pump(ctx context.Context, dir string, src, dst *websocket.Conn, 
 			extra = " session_id=" + env.Session.ID
 		}
 		log.Printf("realtime %s type=%s bytes=%d%s", dir, name, len(data), extra)
-		if err := dst.Write(ctx, websocket.MessageText, data); err != nil {
+		err = dst.Write(ctx, websocket.MessageText, data)
+		if err != nil {
 			return err
 		}
 	}
 }
 
+// 输入：本结构体的 base、model。输出：带 model 的 wss URL，或拼失败。
+// 拼 Qwen 拨号地址。
 func (r *Relay) dialURL() (string, error) {
 	u, err := url.Parse(r.base)
 	if err != nil {

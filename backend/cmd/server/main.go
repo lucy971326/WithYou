@@ -36,7 +36,8 @@ func main() {
 	}
 
 	log.Printf("withyou listening on http://%s", cfg.Addr)
-	if err := http.ListenAndServe(cfg.Addr, mux); err != nil {
+	err = http.ListenAndServe(cfg.Addr, mux)
+	if err != nil {
 		log.Fatal(err)
 	}
 }

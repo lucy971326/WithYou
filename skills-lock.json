@@ -1,6 +1,18 @@
 {
   "version": 1,
   "skills": {
+    "qianwen-audio-tts": {
+      "source": "QianWen-AI/qianwen-ai",
+      "sourceType": "github",
+      "skillPath": "skills/audio/qianwen-audio-tts/SKILL.md",
+      "computedHash": "9a17ad5ebadc72fa8a8d7f8f3a655e76772a7d392a2854c6750c3fa661d427f0"
+    },
+    "qianwen-find-skills": {
+      "source": "QianWen-AI/qianwen-ai",
+      "sourceType": "github",
+      "skillPath": "skills/meta/qianwen-find-skills/SKILL.md",
+      "computedHash": "59f61670a8e5496dd22445f5a9c3db7d1930043b61b6a36cbaa39ce45ed08125"
+    },
     "qianwen-model-selector": {
       "source": "QianWen-AI/qianwen-ai",
       "sourceType": "github",

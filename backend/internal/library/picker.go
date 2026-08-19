@@ -30,7 +30,8 @@ func (p *Picker) Pick(ctx context.Context) (OpenedFile, error) {
 		}
 		return OpenedFile{}, fmt.Errorf("library: native file dialog: %w", err)
 	}
-	if err := ctx.Err(); err != nil {
+	err = ctx.Err()
+	if err != nil {
 		return OpenedFile{}, err
 	}
 

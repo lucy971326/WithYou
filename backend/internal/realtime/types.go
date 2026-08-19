@@ -56,7 +56,8 @@ type envelope struct {
 
 func parseEnvelope(raw []byte) (envelope, error) {
 	var env envelope
-	if err := json.Unmarshal(raw, &env); err != nil {
+	err := json.Unmarshal(raw, &env)
+	if err != nil {
 		return envelope{}, fmt.Errorf("realtime: not json: %w", err)
 	}
 	if env.Type == "" {

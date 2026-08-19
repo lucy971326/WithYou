@@ -54,7 +54,8 @@ func (e *Enricher) Enrich(ctx context.Context) (PlotDoc, bool, error) {
 	}
 
 	if doc, hit := e.cache.Get(file.Path, file.Size); hit {
-		if err := validatePlot(doc, cues.Cues); err == nil {
+		err := validatePlot(doc, cues.Cues)
+		if err == nil {
 			e.state.replacePlot(doc)
 			return doc, true, nil
 		}
@@ -70,17 +71,20 @@ func (e *Enricher) Enrich(ctx context.Context) (PlotDoc, bool, error) {
 			continue
 		}
 		var doc PlotDoc
-		if err := json.Unmarshal([]byte(raw), &doc); err != nil {
+		err = json.Unmarshal([]byte(raw), &doc)
+		if err != nil {
 			last = fmt.Errorf("plot: parse json: %w", err)
 			log.Printf("plot enrich attempt %d: %v", attempt, last)
 			continue
 		}
-		if err := validatePlot(doc, cues.Cues); err != nil {
+		err = validatePlot(doc, cues.Cues)
+		if err != nil {
 			last = err
 			log.Printf("plot enrich attempt %d: %v", attempt, err)
 			continue
 		}
-		if err := e.cache.Put(file.Path, file.Size, doc); err != nil {
+		err = e.cache.Put(file.Path, file.Size, doc)
+		if err != nil {
 			log.Printf("plot cache put: %v", err)
 		}
 		e.state.replacePlot(doc)

@@ -33,7 +33,8 @@ func sampleDoc() PlotDoc {
 
 func TestValidatePlotOK(t *testing.T) {
 	cues := []Cue{{StartSec: 1, EndSec: 3.5, Text: "a"}, {StartSec: 4, EndSec: 18, Text: "b"}}
-	if err := validatePlot(sampleDoc(), cues); err != nil {
+	err := validatePlot(sampleDoc(), cues)
+	if err != nil {
 		t.Fatal(err)
 	}
 }
@@ -41,7 +42,8 @@ func TestValidatePlotOK(t *testing.T) {
 func TestValidatePlotEmptyField(t *testing.T) {
 	doc := sampleDoc()
 	doc.MajorSegments[0].SubSegments[0].Emotion = ""
-	if err := validatePlot(doc, nil); err == nil {
+	err := validatePlot(doc, nil)
+	if err == nil {
 		t.Fatal("expected error")
 	}
 }
@@ -49,7 +51,8 @@ func TestValidatePlotEmptyField(t *testing.T) {
 func TestCacheRoundTrip(t *testing.T) {
 	c := &Cache{dir: t.TempDir()}
 	doc := sampleDoc()
-	if err := c.Put("D:\\a.mkv", 12, doc); err != nil {
+	err := c.Put("D:\\a.mkv", 12, doc)
+	if err != nil {
 		t.Fatal(err)
 	}
 	got, ok := c.Get("D:\\a.mkv", 12)

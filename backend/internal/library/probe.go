@@ -31,11 +31,13 @@ func probeVideo(ctx context.Context, path string) (videoStream, error) {
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
+	err := cmd.Run()
+	if err != nil {
 		return videoStream{}, fmt.Errorf("library: ffprobe: %w: %s", err, strings.TrimSpace(stderr.String()))
 	}
 	var out probeOutput
-	if err := json.Unmarshal(stdout.Bytes(), &out); err != nil {
+	err = json.Unmarshal(stdout.Bytes(), &out)
+	if err != nil {
 		return videoStream{}, fmt.Errorf("library: parse ffprobe: %w", err)
 	}
 	if len(out.Streams) == 0 {

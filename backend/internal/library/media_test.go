@@ -28,7 +28,8 @@ func TestMediaRangeAndMissing(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "clip.bin")
 	payload := []byte("0123456789abcdef")
-	if err := os.WriteFile(path, payload, 0o644); err != nil {
+	err = os.WriteFile(path, payload, 0o644)
+	if err != nil {
 		t.Fatal(err)
 	}
 	mod.Media.state.replace(OpenedFile{

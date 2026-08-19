@@ -10,7 +10,8 @@ import (
 )
 
 func TestExtractPathFromMuxedSRT(t *testing.T) {
-	if _, err := exec.LookPath("ffmpeg"); err != nil {
+	_, err := exec.LookPath("ffmpeg")
+	if err != nil {
 		t.Skip("ffmpeg not on PATH")
 	}
 	dir := t.TempDir()
@@ -27,7 +28,8 @@ func TestExtractPathFromMuxedSRT(t *testing.T) {
 		mkv,
 	)
 	hideWindow(cmd)
-	if out, err := cmd.CombinedOutput(); err != nil {
+	out, err := cmd.CombinedOutput()
+	if err != nil {
 		t.Fatalf("mux mkv: %v\n%s", err, out)
 	}
 
@@ -45,7 +47,8 @@ func TestExtractPathFromMuxedSRT(t *testing.T) {
 }
 
 func TestExtractNoSubtitle(t *testing.T) {
-	if _, err := exec.LookPath("ffmpeg"); err != nil {
+	_, err := exec.LookPath("ffmpeg")
+	if err != nil {
 		t.Skip("ffmpeg not on PATH")
 	}
 	dir := t.TempDir()
@@ -57,11 +60,12 @@ func TestExtractNoSubtitle(t *testing.T) {
 		mkv,
 	)
 	hideWindow(cmd)
-	if out, err := cmd.CombinedOutput(); err != nil {
+	out, err := cmd.CombinedOutput()
+	if err != nil {
 		t.Fatalf("mux mkv: %v\n%s", err, out)
 	}
 	mod := newTestModule(t)
-	_, err := mod.Extractor.ExtractPath(context.Background(), mkv)
+	_, err = mod.Extractor.ExtractPath(context.Background(), mkv)
 	if err != ErrNoSubtitle {
 		t.Fatalf("err=%v", err)
 	}

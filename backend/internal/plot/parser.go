@@ -45,7 +45,8 @@ func parseSRT(content string) []Cue {
 				timeLine = ln
 				continue
 			}
-			if _, err := strconv.Atoi(ln); err == nil {
+			_, err := strconv.Atoi(ln)
+			if err == nil {
 				continue
 			}
 			textLines = append(textLines, ln)

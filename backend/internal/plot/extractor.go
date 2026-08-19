@@ -80,11 +80,13 @@ func probeSubtitle(ctx context.Context, path string) (string, error) {
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
+	err := cmd.Run()
+	if err != nil {
 		return "", fmt.Errorf("plot: ffprobe: %w: %s", err, strings.TrimSpace(stderr.String()))
 	}
 	var out probeOut
-	if err := json.Unmarshal(stdout.Bytes(), &out); err != nil {
+	err = json.Unmarshal(stdout.Bytes(), &out)
+	if err != nil {
 		return "", fmt.Errorf("plot: parse ffprobe: %w", err)
 	}
 	if len(out.Streams) == 0 || out.Streams[0].CodecName == "" {
@@ -124,7 +126,8 @@ func extractTrack(ctx context.Context, path, format string) (string, error) {
 	hideWindow(cmd)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
+	err = cmd.Run()
+	if err != nil {
 		return "", fmt.Errorf("plot: ffmpeg extract: %w: %s", err, lastLine(stderr.String()))
 	}
 	data, err := os.ReadFile(out)

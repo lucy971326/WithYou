@@ -37,7 +37,8 @@ func validatePlot(doc PlotDoc, cues []Cue) error {
 			if sub.StartSec >= sub.EndSec {
 				return fmt.Errorf("plot: major[%d].sub[%d] bad time %d-%d", i, j, sub.StartSec, sub.EndSec)
 			}
-			if err := requireNonEmpty(sub); err != nil {
+			err := requireNonEmpty(sub)
+			if err != nil {
 				return fmt.Errorf("plot: major[%d].sub[%d]: %w", i, j, err)
 			}
 		}

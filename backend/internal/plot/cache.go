@@ -67,11 +67,13 @@ func migrateOldCache(dstDir string) {
 			continue
 		}
 		dst := filepath.Join(dstDir, e.Name())
-		if _, err := os.Stat(dst); err == nil {
+		_, err = os.Stat(dst)
+		if err == nil {
 			continue
 		}
 		src := filepath.Join(srcDir, e.Name())
-		if err := copyFile(src, dst); err != nil {
+		err = copyFile(src, dst)
+		if err != nil {
 			log.Printf("plot cache migrate %s: %v", e.Name(), err)
 		}
 	}
@@ -104,7 +106,8 @@ func (c *Cache) Get(path string, size int64) (PlotDoc, bool) {
 		return PlotDoc{}, false
 	}
 	var doc PlotDoc
-	if err := json.Unmarshal(data, &doc); err != nil {
+	err = json.Unmarshal(data, &doc)
+	if err != nil {
 		return PlotDoc{}, false
 	}
 	return doc, true
