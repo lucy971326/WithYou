@@ -14,6 +14,13 @@ type OpenResponse = {
 };
 type ErrorResponse = { error: string };
 type SubtitleDoc = { format: string; count: number };
+type EnrichResponse = {
+  title: string;
+  cached: boolean;
+  major_count: number;
+  sub_count: number;
+  grand_summary: string;
+};
 
 openBtn.addEventListener("click", () => {
   void openVideo();
@@ -65,8 +72,26 @@ async function loadSubtitles(): Promise<void> {
       return;
     }
     statusEl.textContent = `${prev} · 字幕 ${body.count} 条`;
+    await loadPlot();
   } catch (err) {
     statusEl.textContent = `${prev} · ${err instanceof Error ? err.message : "抽字幕失败"}`;
+  }
+}
+
+async function loadPlot(): Promise<void> {
+  const prev = statusEl.textContent ?? "";
+  statusEl.textContent = `${prev} · 富化剧情…`;
+  try {
+    const resp = await fetch("/api/plot/enrich", { method: "POST" });
+    const body = (await resp.json()) as EnrichResponse & ErrorResponse;
+    if (!resp.ok) {
+      statusEl.textContent = `${prev} · ${body.error || "富化失败"}`;
+      return;
+    }
+    const via = body.cached ? "缓存" : "DeepSeek";
+    statusEl.textContent = `${prev} · 剧情 ${body.major_count} 段 / ${body.sub_count} 节（${via}）`;
+  } catch (err) {
+    statusEl.textContent = `${prev} · ${err instanceof Error ? err.message : "富化失败"}`;
   }
 }
 

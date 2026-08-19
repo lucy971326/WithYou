@@ -16,7 +16,11 @@ func main() {
 	}
 
 	lib := library.New()
-	plt := plot.New(plot.Dependencies{Media: lib.Media})
+	plt := plot.New(plot.Dependencies{
+		Media:          lib.Media,
+		DeepSeekAPIKey: cfg.DeepSeekAPIKey,
+		DeepSeekModel:  cfg.DeepSeekModel,
+	})
 	mux := http.NewServeMux()
 	lib.HTTP.Register(mux)
 	plt.HTTP.Register(mux)

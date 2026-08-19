@@ -7,16 +7,19 @@ import (
 	"net/http"
 )
 
-// HTTP 把 plot 抽轨能力挂到 ServeMux 上。
+// HTTP 把 plot 抽轨和富化挂到 ServeMux 上。
 type HTTP struct {
 	extractor *Extractor
+	enricher  *Enricher
 	state     *state
 }
 
-// Register 注册抽字幕接口。
+// Register 注册抽字幕和富化接口。
 func (h *HTTP) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/plot/subtitles", h.handleExtract)
 	mux.HandleFunc("GET /api/plot/subtitles", h.handleGet)
+	mux.HandleFunc("POST /api/plot/enrich", h.handleEnrich)
+	mux.HandleFunc("GET /api/plot/enrich", h.handleGetPlot)
 }
 
 func (h *HTTP) handleExtract(w http.ResponseWriter, r *http.Request) {
@@ -47,6 +50,42 @@ func (h *HTTP) handleGet(w http.ResponseWriter, _ *http.Request) {
 	doc, ok := h.state.current()
 	if !ok {
 		writeJSON(w, http.StatusNotFound, ErrorResponse{Error: "no subtitles yet"})
+		return
+	}
+	writeJSON(w, http.StatusOK, doc)
+}
+
+func (h *HTTP) handleEnrich(w http.ResponseWriter, r *http.Request) {
+	doc, cached, err := h.enricher.Enrich(r.Context())
+	if err != nil {
+		status := http.StatusInternalServerError
+		msg := "enrich failed"
+		switch {
+		case errors.Is(err, ErrNoFile):
+			status = http.StatusConflict
+			msg = "no file open"
+		case errors.Is(err, ErrNoCues):
+			status = http.StatusConflict
+			msg = "no subtitles yet"
+		case errors.Is(err, ErrNoAPIKey):
+			status = http.StatusServiceUnavailable
+			msg = "missing DEEPSEEK_API_KEY"
+		case errors.Is(err, ErrEmptyContent), errors.Is(err, ErrInvalidSchema):
+			status = http.StatusBadGateway
+			msg = "invalid json from model"
+		default:
+			log.Printf("plot enrich: %v", err)
+		}
+		writeJSON(w, status, ErrorResponse{Error: msg})
+		return
+	}
+	writeJSON(w, http.StatusOK, summarize(doc, cached))
+}
+
+func (h *HTTP) handleGetPlot(w http.ResponseWriter, _ *http.Request) {
+	doc, ok := h.state.currentPlot()
+	if !ok {
+		writeJSON(w, http.StatusNotFound, ErrorResponse{Error: "no plot yet"})
 		return
 	}
 	writeJSON(w, http.StatusOK, doc)

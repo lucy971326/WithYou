@@ -4,13 +4,17 @@ import "withyou/internal/library"
 
 // Dependencies 是 plot 需要的外部能力。
 type Dependencies struct {
-	Media *library.Media
+	Media          *library.Media
+	DeepSeekAPIKey string
+	DeepSeekModel  string
 }
 
-// Module 组装「抽软字幕并解析」。
+// Module 组装抽字幕 + 富化。
 type Module struct {
 	Extractor *Extractor
 	Parser    *Parser
+	Cache     *Cache
+	Enricher  *Enricher
 	HTTP      *HTTP
 }
 
@@ -22,9 +26,21 @@ func New(deps Dependencies) *Module {
 	s := &state{}
 	parser := &Parser{}
 	extractor := &Extractor{media: deps.Media, parser: parser, state: s}
+	cache := newCache()
+	client, model, ready := newClient(deps.DeepSeekAPIKey, deps.DeepSeekModel)
+	enricher := &Enricher{
+		media:  deps.Media,
+		state:  s,
+		cache:  cache,
+		client: client,
+		model:  model,
+		ready:  ready,
+	}
 	return &Module{
 		Extractor: extractor,
 		Parser:    parser,
-		HTTP:      &HTTP{extractor: extractor, state: s},
+		Cache:     cache,
+		Enricher:  enricher,
+		HTTP:      &HTTP{extractor: extractor, enricher: enricher, state: s},
 	}
 }
