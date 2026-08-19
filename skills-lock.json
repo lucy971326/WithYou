@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "qianwen-model-selector": {
+      "source": "QianWen-AI/qianwen-ai",
+      "sourceType": "github",
+      "skillPath": "skills/models/qianwen-model-selector/SKILL.md",
+      "computedHash": "dad912ba89df7de4f73e93e5c25d41288dda2de423c427ece4589bdfe991f8d6"
+    }
+  }
+}

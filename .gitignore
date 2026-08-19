@@ -1,0 +1,10 @@
+# secrets
+.env
+
+# python
+__pycache__/
+*.pyc
+.venv/
+
+# 探索/试错区（含本地测试素材与临时产物，不提交）
+forward/
