@@ -1,9 +1,16 @@
 import "./style.css";
+import { RealtimeWatch, type PlotDoc } from "./realtime";
 
 const openBtn = document.querySelector<HTMLButtonElement>("#open-btn")!;
 const statusEl = document.querySelector<HTMLSpanElement>("#status")!;
 const player = document.querySelector<HTMLVideoElement>("#player")!;
+const stage = document.querySelector<HTMLDivElement>("#stage")!;
+const subEl = document.querySelector<HTMLDivElement>("#subtitles")!;
 const empty = document.querySelector<HTMLParagraphElement>("#empty")!;
+
+type Cue = { start_sec: number; end_sec: number; text: string };
+let cues: Cue[] = [];
+let watch: RealtimeWatch | null = null;
 
 type OpenResponse = {
   name: string;
@@ -13,7 +20,7 @@ type OpenResponse = {
   browserSafe: boolean;
 };
 type ErrorResponse = { error: string };
-type SubtitleDoc = { format: string; count: number };
+type SubtitleDoc = { format: string; count: number; cues: Cue[] };
 type EnrichResponse = {
   title: string;
   cached: boolean;
@@ -32,6 +39,16 @@ player.addEventListener("loadeddata", () => {
   }
 });
 
+player.addEventListener("timeupdate", () => {
+  paintCue(player.currentTime);
+  watch?.onTime(player.currentTime);
+});
+
+player.addEventListener("seeked", () => {
+  paintCue(player.currentTime);
+  watch?.onTime(player.currentTime);
+});
+
 async function openVideo(): Promise<void> {
   openBtn.disabled = true;
   statusEl.textContent = "在系统窗口里选文件…";
@@ -48,7 +65,11 @@ async function openVideo(): Promise<void> {
     }
     statusEl.textContent = formatStatus(body);
     empty.classList.add("is-hidden");
-    player.classList.add("is-on");
+    stage.classList.add("is-on");
+    cues = [];
+    subEl.textContent = "";
+    watch?.stop();
+    watch = null;
     player.src = `/media?t=${Date.now()}`;
     await player.play().catch(() => {
       /* 浏览器可能拦自动播放，用户点控件即可 */
@@ -71,6 +92,8 @@ async function loadSubtitles(): Promise<void> {
       statusEl.textContent = `${prev} · ${body.error || "抽字幕失败"}`;
       return;
     }
+    cues = body.cues ?? [];
+    paintCue(player.currentTime);
     statusEl.textContent = `${prev} · 字幕 ${body.count} 条`;
     await loadPlot();
   } catch (err) {
@@ -90,9 +113,39 @@ async function loadPlot(): Promise<void> {
     }
     const via = body.cached ? "缓存" : "DeepSeek";
     statusEl.textContent = `${prev} · 剧情 ${body.major_count} 段 / ${body.sub_count} 节（${via}）`;
+    await startRealtime();
   } catch (err) {
     statusEl.textContent = `${prev} · ${err instanceof Error ? err.message : "富化失败"}`;
   }
+}
+
+async function startRealtime(): Promise<void> {
+  const prev = statusEl.textContent ?? "";
+  statusEl.textContent = `${prev} · 连 Realtime…`;
+  try {
+    const resp = await fetch("/api/plot/enrich");
+    const plot = (await resp.json()) as PlotDoc & ErrorResponse;
+    if (!resp.ok) {
+      statusEl.textContent = `${prev} · ${plot.error || "无剧情"}`;
+      return;
+    }
+    watch = new RealtimeWatch(player, (s) => {
+      statusEl.textContent = `${prev} · ${s}`;
+    });
+    await watch.start(plot);
+  } catch (err) {
+    statusEl.textContent = `${prev} · ${err instanceof Error ? err.message : "Realtime 失败"}`;
+  }
+}
+
+function paintCue(t: number): void {
+  for (const cue of cues) {
+    if (t >= cue.start_sec && t < cue.end_sec) {
+      subEl.textContent = cue.text;
+      return;
+    }
+  }
+  subEl.textContent = "";
 }
 
 function formatStatus(info: OpenResponse): string {

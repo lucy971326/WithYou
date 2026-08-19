@@ -146,7 +146,7 @@ V0：
 
 | 内容 | 事件 |
 |------|------|
-| 人设 + 防剧透总规则 | 开场一次 `session.update.instructions` |
+| 人设 + 本集完整剧情 | 开场一次 `session.update.instructions` |
 | 总览 / 跨段 / 快进补全 / 倒退提示 | `conversation.item.create` + `input_text` |
 | 当前画面 | `input_image_buffer.append` |
 | 用户说话 | `input_audio_buffer.append`（VAD 自动收） |

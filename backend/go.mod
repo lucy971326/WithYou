@@ -1,8 +1,9 @@
 module withyou
 
-go 1.22
+go 1.23
 
 require (
+	github.com/coder/websocket v1.8.14
 	github.com/ncruces/zenity v0.10.14
 	github.com/openai/openai-go/v2 v2.7.1
 )

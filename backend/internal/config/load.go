@@ -12,12 +12,23 @@ func Load() (Config, error) {
 	loadDotEnv("../.env")
 
 	cfg := Config{
-		Addr:           envOr("WITHYOU_ADDR", "127.0.0.1:8080"),
-		QwenAPIKey:     os.Getenv("QWEN_API_KEY"),
-		DeepSeekAPIKey: os.Getenv("DEEPSEEK_API_KEY"),
-		DeepSeekModel:  envOr("DEEPSEEK_MODEL", "deepseek-v4-flash"),
+		Addr:              envOr("WITHYOU_ADDR", "127.0.0.1:8080"),
+		QwenAPIKey:        firstEnv("QWEN_API_KEY", "DASHSCOPE_API_KEY"),
+		QwenRealtimeModel: envOr("QWEN_REALTIME_MODEL", "qwen3.5-omni-plus-realtime"),
+		QwenRealtimeURL:   envOr("QWEN_REALTIME_URL", "wss://dashscope-intl.aliyuncs.com/api-ws/v1/realtime"),
+		DeepSeekAPIKey:    os.Getenv("DEEPSEEK_API_KEY"),
+		DeepSeekModel:     envOr("DEEPSEEK_MODEL", "deepseek-v4-flash"),
 	}
 	return cfg, nil
+}
+
+func firstEnv(keys ...string) string {
+	for _, k := range keys {
+		if v := os.Getenv(k); v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 func envOr(key, fallback string) string {

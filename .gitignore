@@ -8,6 +8,9 @@ frontend/dist/
 # backend
 backend/tmp/
 
+# 剧情 JSON 落盘（项目根）
+cache/
+
 # python
 __pycache__/
 *.pyc
