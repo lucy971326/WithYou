@@ -1,0 +1,8 @@
+[Script Info]
+Title: sample
+ScriptType: v4.00+
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:01.00,0:00:03.50,Default,月,0,0,0,,这个世界正在腐烂。
+Dialogue: 0,0:00:04.00,0:00:06.20,Default,流克,0,0,0,,嘿嘿，有意思{\an8}。

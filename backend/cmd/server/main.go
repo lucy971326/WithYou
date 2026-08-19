@@ -6,6 +6,7 @@ import (
 
 	"withyou/internal/config"
 	"withyou/internal/library"
+	"withyou/internal/plot"
 )
 
 func main() {
@@ -15,8 +16,10 @@ func main() {
 	}
 
 	lib := library.New()
+	plt := plot.New(plot.Dependencies{Media: lib.Media})
 	mux := http.NewServeMux()
 	lib.HTTP.Register(mux)
+	plt.HTTP.Register(mux)
 
 	log.Printf("withyou listening on http://%s", cfg.Addr)
 	if err := http.ListenAndServe(cfg.Addr, mux); err != nil {

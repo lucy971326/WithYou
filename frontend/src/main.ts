@@ -13,6 +13,7 @@ type OpenResponse = {
   browserSafe: boolean;
 };
 type ErrorResponse = { error: string };
+type SubtitleDoc = { format: string; count: number };
 
 openBtn.addEventListener("click", () => {
   void openVideo();
@@ -45,10 +46,27 @@ async function openVideo(): Promise<void> {
     await player.play().catch(() => {
       /* 浏览器可能拦自动播放，用户点控件即可 */
     });
+    await loadSubtitles();
   } catch (err) {
     statusEl.textContent = err instanceof Error ? err.message : "打开失败";
   } finally {
     openBtn.disabled = false;
+  }
+}
+
+async function loadSubtitles(): Promise<void> {
+  const prev = statusEl.textContent ?? "";
+  statusEl.textContent = `${prev} · 抽字幕…`;
+  try {
+    const resp = await fetch("/api/plot/subtitles", { method: "POST" });
+    const body = (await resp.json()) as SubtitleDoc & ErrorResponse;
+    if (!resp.ok) {
+      statusEl.textContent = `${prev} · ${body.error || "抽字幕失败"}`;
+      return;
+    }
+    statusEl.textContent = `${prev} · 字幕 ${body.count} 条`;
+  } catch (err) {
+    statusEl.textContent = `${prev} · ${err instanceof Error ? err.message : "抽字幕失败"}`;
   }
 }
 
