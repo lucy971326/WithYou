@@ -15,7 +15,7 @@ type SubtitleDoc struct {
 	Cues   []Cue  `json:"cues"`
 }
 
-// PlotDoc 是 DeepSeek JSON Output 校验后的剧情档案。
+// PlotDoc 是 Responses API JSON Schema 校验后的剧情档案。
 type PlotDoc struct {
 	Title         string         `json:"title"`
 	Overview      PlotOverview   `json:"overview"`
@@ -24,40 +24,40 @@ type PlotDoc struct {
 
 // PlotOverview 是整集总览。
 type PlotOverview struct {
-	GrandSummary   string   `json:"grand_summary"`
-	KeyCharacters  []string `json:"key_characters"`
-	KeyPlotPoints  []string `json:"key_plot_points"`
+	GrandSummary  string   `json:"grand_summary"`
+	KeyCharacters []string `json:"key_characters"`
+	KeyPlotPoints []string `json:"key_plot_points"`
 }
 
 // MajorSegment 是一个大阶段。
 type MajorSegment struct {
-	StartSec     int           `json:"start_sec"`
-	EndSec       int           `json:"end_sec"`
-	Title        string        `json:"title"`
-	Summary      string        `json:"summary"`
-	SubSegments  []SubSegment  `json:"sub_segments"`
+	StartSec    int          `json:"start_sec"`
+	EndSec      int          `json:"end_sec"`
+	Title       string       `json:"title"`
+	Summary     string       `json:"summary"`
+	SubSegments []SubSegment `json:"sub_segments"`
 }
 
 // SubSegment 是一个小阶段/节拍。
 type SubSegment struct {
-	StartSec             int    `json:"start_sec"`
-	EndSec               int    `json:"end_sec"`
-	Beat                 string `json:"beat"`
-	Summary              string `json:"summary"`
-	KeyDialogue          string `json:"key_dialogue"`
-	VisualScene          string `json:"visual_scene"`
-	CharacterMotivation  string `json:"character_motivation"`
-	Emotion              string `json:"emotion"`
-	StorySoFar           string `json:"story_so_far"`
-	SpoilersAvoided      string `json:"spoilers_avoided"`
+	StartSec            int    `json:"start_sec"`
+	EndSec              int    `json:"end_sec"`
+	Beat                string `json:"beat"`
+	Summary             string `json:"summary"`
+	KeyDialogue         string `json:"key_dialogue"`
+	VisualScene         string `json:"visual_scene"`
+	CharacterMotivation string `json:"character_motivation"`
+	Emotion             string `json:"emotion"`
+	StorySoFar          string `json:"story_so_far"`
+	SpoilersAvoided     string `json:"spoilers_avoided"`
 }
 
 // EnrichResponse 是 POST/GET /api/plot/enrich 给前端的摘要。
 type EnrichResponse struct {
-	Title       string `json:"title"`
-	Cached      bool   `json:"cached"`
-	MajorCount  int    `json:"major_count"`
-	SubCount    int    `json:"sub_count"`
+	Title        string `json:"title"`
+	Cached       bool   `json:"cached"`
+	MajorCount   int    `json:"major_count"`
+	SubCount     int    `json:"sub_count"`
 	GrandSummary string `json:"grand_summary"`
 }
 

@@ -1,6 +1,6 @@
 package plot
 
-// enrichSystemPrompt 必须含有 json 字样，并给出 EXAMPLE JSON OUTPUT（DeepSeek JSON Output 官方要求）。
+// enrichSystemPrompt 描述剧情档案的业务语义；结构由 Responses API 的 JSON Schema 约束。
 const enrichSystemPrompt = `The user will provide one episode's timed dialogue. Parse the story and output a plot archive in JSON format.
 
 You are a film/narrative analyst. Expand dry subtitles into a structured plot file for a downstream realtime AI: motivations, visuals, emotion, relationships, no spoilers beyond what has already happened.

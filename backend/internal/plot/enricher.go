@@ -12,6 +12,7 @@ import (
 
 	"github.com/openai/openai-go/v2"
 	"github.com/openai/openai-go/v2/option"
+	"github.com/openai/openai-go/v2/responses"
 
 	"withyou/internal/library"
 )
@@ -19,8 +20,8 @@ import (
 var (
 	// ErrNoCues 还没抽出对白。
 	ErrNoCues = errors.New("plot: no subtitles extracted")
-	// ErrNoAPIKey 缺少 DeepSeek key。
-	ErrNoAPIKey = errors.New("plot: missing DEEPSEEK_API_KEY")
+	// ErrNoAPIKey 缺少 Qwen key。
+	ErrNoAPIKey = errors.New("plot: missing DASHSCOPE_API_KEY")
 	// ErrEmptyContent JSON Output 返回了空 content。
 	ErrEmptyContent = errors.New("plot: empty json content")
 	// ErrInvalidSchema 重试后 schema 仍不过。
@@ -29,7 +30,7 @@ var (
 
 const enrichAttempts = 2
 
-// Enricher 一次 Chat Completions + json_object，失败再试一次。
+// Enricher 一次 Responses API + strict JSON Schema，失败再试一次。
 type Enricher struct {
 	media  *library.Media
 	state  *state
@@ -39,7 +40,7 @@ type Enricher struct {
 	ready  bool
 }
 
-// Enrich 命中缓存直接回；否则走官方 JSON Output。不设 max_tokens。
+// Enrich 命中缓存直接回；否则走 Responses API 结构化输出。
 func (e *Enricher) Enrich(ctx context.Context) (PlotDoc, bool, error) {
 	if !e.ready {
 		return PlotDoc{}, false, ErrNoAPIKey
@@ -97,25 +98,32 @@ func (e *Enricher) Enrich(ctx context.Context) (PlotDoc, bool, error) {
 }
 
 func (e *Enricher) completeJSON(ctx context.Context, title string, cues []Cue) (string, error) {
-	resp, err := e.client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
-		Model: e.model,
-		Messages: []openai.ChatCompletionMessageParamUnion{
-			openai.SystemMessage(enrichSystemPrompt),
-			openai.UserMessage(buildUserPrompt(title, cues)),
+	resp, err := e.client.Responses.New(ctx, responses.ResponseNewParams{
+		Model:        e.model,
+		Instructions: openai.String(enrichSystemPrompt),
+		Input: responses.ResponseNewParamsInputUnion{
+			OfString: openai.String(buildUserPrompt(title, cues)),
 		},
-		ResponseFormat: openai.ChatCompletionNewParamsResponseFormatUnion{
-			OfJSONObject: &openai.ResponseFormatJSONObjectParam{
-				Type: "json_object",
+		Text: responses.ResponseTextConfigParam{
+			Format: responses.ResponseFormatTextConfigUnionParam{
+				OfJSONSchema: &responses.ResponseFormatTextJSONSchemaConfigParam{
+					Name:   "plot_archive",
+					Strict: openai.Bool(true),
+					Schema: plotJSONSchema(),
+				},
 			},
 		},
-	})
+	}, option.WithJSONSet("tools", []map[string]any{
+		{"type": "web_search"},
+		{"type": "web_extractor"},
+	}))
 	if err != nil {
 		return "", err
 	}
-	if len(resp.Choices) == 0 || strings.TrimSpace(resp.Choices[0].Message.Content) == "" {
+	if strings.TrimSpace(resp.OutputText()) == "" {
 		return "", ErrEmptyContent
 	}
-	return resp.Choices[0].Message.Content, nil
+	return resp.OutputText(), nil
 }
 
 func buildUserPrompt(title string, cues []Cue) string {
@@ -133,15 +141,68 @@ func newClient(apiKey, model string) (openai.Client, string, bool) {
 	if apiKey == "" {
 		return openai.Client{}, model, false
 	}
-	if model == "" {
-		model = "deepseek-v4-flash"
-	}
 	client := openai.NewClient(
 		option.WithAPIKey(apiKey),
-		option.WithBaseURL("https://api.deepseek.com"),
+		option.WithBaseURL("https://dashscope-intl.aliyuncs.com/compatible-mode/v1"),
 		option.WithRequestTimeout(10*time.Minute),
 	)
 	return client, model, true
+}
+
+func plotJSONSchema() map[string]any {
+	text := map[string]any{"type": "string"}
+	segment := map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"start_sec":            map[string]any{"type": "integer"},
+			"end_sec":              map[string]any{"type": "integer"},
+			"beat":                 text,
+			"summary":              text,
+			"key_dialogue":         text,
+			"visual_scene":         text,
+			"character_motivation": text,
+			"emotion":              text,
+			"story_so_far":         text,
+			"spoilers_avoided":     text,
+		},
+		"required": []string{
+			"start_sec", "end_sec", "beat", "summary", "key_dialogue",
+			"visual_scene", "character_motivation", "emotion", "story_so_far",
+			"spoilers_avoided",
+		},
+		"additionalProperties": false,
+	}
+	major := map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"start_sec":    map[string]any{"type": "integer"},
+			"end_sec":      map[string]any{"type": "integer"},
+			"title":        text,
+			"summary":      text,
+			"sub_segments": map[string]any{"type": "array", "items": segment},
+		},
+		"required":             []string{"start_sec", "end_sec", "title", "summary", "sub_segments"},
+		"additionalProperties": false,
+	}
+	return map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"title": text,
+			"overview": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"grand_summary":   text,
+					"key_characters":  map[string]any{"type": "array", "items": text},
+					"key_plot_points": map[string]any{"type": "array", "items": text},
+				},
+				"required":             []string{"grand_summary", "key_characters", "key_plot_points"},
+				"additionalProperties": false,
+			},
+			"major_segments": map[string]any{"type": "array", "items": major},
+		},
+		"required":             []string{"title", "overview", "major_segments"},
+		"additionalProperties": false,
+	}
 }
 
 func summarize(doc PlotDoc, cached bool) EnrichResponse {

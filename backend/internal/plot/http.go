@@ -69,7 +69,7 @@ func (h *HTTP) handleEnrich(w http.ResponseWriter, r *http.Request) {
 			msg = "no subtitles yet"
 		case errors.Is(err, ErrNoAPIKey):
 			status = http.StatusServiceUnavailable
-			msg = "missing DEEPSEEK_API_KEY"
+			msg = "missing DASHSCOPE_API_KEY"
 		case errors.Is(err, ErrEmptyContent), errors.Is(err, ErrInvalidSchema):
 			status = http.StatusBadGateway
 			msg = "invalid json from model"

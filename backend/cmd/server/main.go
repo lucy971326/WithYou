@@ -18,9 +18,9 @@ func main() {
 
 	lib := library.New()
 	plt := plot.New(plot.Dependencies{
-		Media:          lib.Media,
-		DeepSeekAPIKey: cfg.DeepSeekAPIKey,
-		DeepSeekModel:  cfg.DeepSeekModel,
+		Media:      lib.Media,
+		QwenAPIKey: cfg.QwenAPIKey,
+		QwenModel:  cfg.QwenPlotModel,
 	})
 	rt := realtime.New(realtime.Dependencies{
 		APIKey: cfg.QwenAPIKey,

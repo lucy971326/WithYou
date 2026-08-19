@@ -12,7 +12,7 @@ flowchart LR
 | 给谁 | 什么 |
 |------|------|
 | library / HTTP | `Addr` |
-| plot | DeepSeek key、模型名 |
+| plot | Qwen API key、模型名 |
 | realtime | Qwen key、Realtime URL / 模型 |
 
 Key 只活在本机进程里。缺 Realtime key 时服务仍能起来，升级 WS 再 503。
