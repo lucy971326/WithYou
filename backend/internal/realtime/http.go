@@ -1,6 +1,7 @@
 package realtime
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
 
@@ -11,12 +12,32 @@ import (
 //
 //	浏览器 GET /api/realtime → 本机 WS → Relay.Serve
 type HTTP struct {
-	relay *Relay
+	relay       *Relay
+	voice       string
+	voiceAPIURL string
 }
 
-// Register 挂升级入口。
+// Register 挂 HTTP 入口。
 func (h *HTTP) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/realtime", h.handleWS)
+	mux.HandleFunc("GET /api/voices", h.handleVoices)
+}
+
+// handleVoices 返回可选项：官方预置音色 + 账号下的克隆音色。
+func (h *HTTP) handleVoices(w http.ResponseWriter, r *http.Request) {
+	resp := voicesResponse{
+		DefaultVoice: h.voice,
+		Preset:       presetVoices,
+		Custom:       []Voice{},
+	}
+	custom, err := listClonedVoices(r.Context(), h.relay.apiKey, h.voiceAPIURL)
+	if err != nil {
+		resp.CustomError = err.Error()
+	} else {
+		resp.Custom = custom
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 // handleWS：验 key → 升 WS（仅本机源）→ 阻塞在 Serve，直到这条会话死。

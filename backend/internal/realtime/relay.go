@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 
 	"github.com/coder/websocket"
 )
@@ -20,6 +21,18 @@ type Relay struct {
 	apiKey string
 	model  string
 	base   string
+
+	quietMu     sync.Mutex
+	quietCounts map[string]int
+}
+
+// quietTypes 是高频流式事件，只抽样打日志，避免刷屏。
+var quietTypes = map[string]bool{
+	TypeAudioAppend:             true,
+	TypeResponseAudioDelta:      true,
+	TypeResponseAudioTransDelta: true,
+	TypeUserTranscriptionDelta:  true,
+	TypeResponseTextDelta:       true,
 }
 
 // 输入：ctx、已升级的浏览器 WS。输出：会话结束原因。
@@ -95,11 +108,26 @@ func (r *Relay) pump(ctx context.Context, dir string, src, dst *websocket.Conn, 
 		if env.Type == TypeSessionCreated && env.Session != nil {
 			extra = " session_id=" + env.Session.ID
 		}
-		log.Printf("realtime %s type=%s bytes=%d%s", dir, name, len(data), extra)
+		r.logEvent(dir, name, len(data), extra)
 		err = dst.Write(ctx, websocket.MessageText, data)
 		if err != nil {
 			return err
 		}
+	}
+}
+
+// logEvent 普通事件原样打；高频事件首次 + 每 50 条打一次计数。
+func (r *Relay) logEvent(dir, name string, n int, extra string) {
+	if !quietTypes[name] {
+		log.Printf("realtime %s type=%s bytes=%d%s", dir, name, n, extra)
+		return
+	}
+	r.quietMu.Lock()
+	r.quietCounts[name]++
+	count := r.quietCounts[name]
+	r.quietMu.Unlock()
+	if count == 1 || count%50 == 0 {
+		log.Printf("realtime %s type=%s bytes=%d total=%d", dir, name, n, count)
 	}
 }
 

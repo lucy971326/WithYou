@@ -10,6 +10,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"withyou/internal/reporoot"
 )
 
 // Cache 按原片路径+大小把剧情 JSON 落盘到仓库根目录 cache/plot。
@@ -18,38 +20,11 @@ type Cache struct {
 }
 
 func newCache() *Cache {
-	dir := filepath.Join(projectRoot(), "cache", "plot")
+	dir := filepath.Join(reporoot.Root(), "cache", "plot")
 	_ = os.MkdirAll(dir, 0o755)
 	migrateOldCache(dir)
 	log.Printf("plot cache: %s", dir)
 	return &Cache{dir: dir}
-}
-
-func projectRoot() string {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return "."
-	}
-	for _, dir := range []string{cwd, filepath.Join(cwd, "..")} {
-		if isRepoRoot(dir) {
-			abs, err := filepath.Abs(dir)
-			if err == nil {
-				return abs
-			}
-			return dir
-		}
-	}
-	abs, err := filepath.Abs(cwd)
-	if err != nil {
-		return cwd
-	}
-	return abs
-}
-
-func isRepoRoot(dir string) bool {
-	_, err1 := os.Stat(filepath.Join(dir, "backend"))
-	_, err2 := os.Stat(filepath.Join(dir, "frontend"))
-	return err1 == nil && err2 == nil
 }
 
 func migrateOldCache(dstDir string) {

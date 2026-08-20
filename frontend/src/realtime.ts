@@ -33,13 +33,25 @@ export type PlotDoc = {
   }>;
 };
 
+export type TimelineEvent =
+  | { type: "user_delta"; text: string; stash: string }
+  | { type: "user_done"; transcript: string }
+  | { type: "ai_start" }
+  | { type: "ai_delta"; delta: string }
+  | { type: "ai_done"; transcript?: string; interrupted?: boolean }
+  | { type: "system"; label: string; detail?: string };
+
 type Frame = { at: number; b64: string; raw: number };
 
 export class RealtimeWatch {
   private readonly video: HTMLVideoElement;
   private readonly onStatus: (s: string) => void;
+  private readonly onBeat?: (seg: SubSegment) => void;
+  private readonly onTimeline?: (ev: TimelineEvent) => void;
   private ws: WebSocket | null = null;
   private plot: PlotDoc | null = null;
+  private voice = "Tina";
+  private aiDoneEmitted = true;
   private gate = false;
   private audioSent = false;
   private aiTalking = false;
@@ -56,9 +68,28 @@ export class RealtimeWatch {
   private sources: AudioBufferSourceNode[] = [];
   private savedVolume = 1;
 
-  constructor(video: HTMLVideoElement, onStatus: (s: string) => void) {
+  constructor(
+    video: HTMLVideoElement,
+    onStatus: (s: string) => void,
+    onBeat?: (seg: SubSegment) => void,
+    onTimeline?: (ev: TimelineEvent) => void,
+  ) {
     this.video = video;
     this.onStatus = onStatus;
+    this.onBeat = onBeat;
+    this.onTimeline = onTimeline;
+  }
+
+  setVoice(voice: string): void {
+    this.voice = voice;
+    if (this.gate) {
+      // 音频配置发过之后不能再改，换音色只发 voice，不能全量重发 session。
+      const ok = this.send({ type: "session.update", session: { voice } });
+      if (ok) {
+        this.onTimeline?.({ type: "system", label: "音色已切换", detail: voice });
+      }
+      log("→ session.update voice", voice);
+    }
   }
 
   async start(plot: PlotDoc): Promise<void> {
@@ -124,20 +155,25 @@ export class RealtimeWatch {
     }
     if (this.lastSeg >= 0 && idx > this.lastSeg + 1) {
       const skipped = segs.slice(this.lastSeg + 1, idx);
-      this.sendItem(`【快进】跳过：${skipped.map((s) => s.beat).join(" / ")}。现在进入：\n${formatSeg(segs[idx]!)}`);
+      this.sendItem(
+        `【快进】跳过：${skipped.map((s) => s.beat).join(" / ")}。现在进入：\n${formatSeg(segs[idx]!)}`,
+        "剧情更新",
+        `快进，进入「${segs[idx]!.beat}」`,
+      );
     } else if (this.lastSeg >= 0 && idx < this.lastSeg) {
-      this.sendItem(`【倒退】回到 ${formatSeg(segs[idx]!)}`);
+      this.sendItem(`【倒退】回到 ${formatSeg(segs[idx]!)}`, "剧情更新", `倒退，回到「${segs[idx]!.beat}」`);
     } else {
-      this.sendItem(`【当前剧情】\n${formatSeg(segs[idx]!)}`);
+      this.sendItem(`【当前剧情】\n${formatSeg(segs[idx]!)}`, "剧情更新", `当前节拍「${segs[idx]!.beat}」`);
     }
     this.lastSeg = idx;
+    this.onBeat?.(segs[idx]!);
     log("segment", idx, segs[idx]?.beat);
   }
 
   private async onServer(raw: string): Promise<void> {
-    let msg: { type?: string; delta?: string };
+    let msg: { type?: string; delta?: string; text?: string; stash?: string; transcript?: string };
     try {
-      msg = JSON.parse(raw) as { type?: string; delta?: string };
+      msg = JSON.parse(raw) as { type?: string; delta?: string; text?: string; stash?: string; transcript?: string };
     } catch {
       log("bad json from server");
       return;
@@ -148,7 +184,7 @@ export class RealtimeWatch {
     }
     switch (typ) {
       case "session.created":
-        this.sendSessionUpdate();
+        this.sendSessionUpdate(true);
         break;
       case "session.updated":
         this.gate = true;
@@ -167,9 +203,24 @@ export class RealtimeWatch {
         this.sendLookbackFrame();
         break;
       case "response.created":
+        this.aiDoneEmitted = false;
         this.aiTalking = true;
         this.savedVolume = this.video.volume;
         this.video.volume = Math.min(this.savedVolume, 0.5);
+        this.onTimeline?.({ type: "ai_start" });
+        break;
+      case "conversation.item.input_audio_transcription.delta":
+        this.onTimeline?.({ type: "user_delta", text: msg.text ?? "", stash: msg.stash ?? "" });
+        break;
+      case "conversation.item.input_audio_transcription.completed":
+        this.onTimeline?.({ type: "user_done", transcript: msg.transcript ?? "" });
+        break;
+      case "response.audio_transcript.delta":
+        this.onTimeline?.({ type: "ai_delta", delta: msg.delta ?? "" });
+        break;
+      case "response.audio_transcript.done":
+        this.aiDoneEmitted = true;
+        this.onTimeline?.({ type: "ai_done", transcript: msg.transcript ?? "" });
         break;
       case "response.audio.delta":
         if (msg.delta) {
@@ -179,6 +230,10 @@ export class RealtimeWatch {
       case "response.done":
         this.aiTalking = false;
         this.video.volume = this.savedVolume;
+        if (!this.aiDoneEmitted) {
+          this.onTimeline?.({ type: "ai_done", interrupted: true });
+        }
+        this.aiDoneEmitted = true;
         log("response done");
         break;
       case "error":
@@ -190,7 +245,7 @@ export class RealtimeWatch {
     }
   }
 
-  private sendSessionUpdate(): void {
+  private sendSessionUpdate(notify = false): void {
     const plot = this.plot;
     if (!plot) {
       return;
@@ -201,14 +256,17 @@ export class RealtimeWatch {
       "优先回应当前播放段和画面。",
       JSON.stringify(plot),
     ].join("\n");
-    this.send({
+    const ok = this.send({
       type: "session.update",
       session: {
         modalities: ["text", "audio"],
-        voice: "Tina",
+        voice: this.voice,
         audio: {
           input: { format: { type: "pcm", sample_rate: 24000 } },
           output: { format: { type: "pcm", sample_rate: 24000 } },
+        },
+        input_audio_transcription: {
+          model: "qwen3-asr-flash-realtime",
         },
         instructions,
         turn_detection: {
@@ -218,11 +276,14 @@ export class RealtimeWatch {
         },
       },
     });
+    if (ok && notify) {
+      this.onTimeline?.({ type: "system", label: "剧情已灌注", detail: "开场整集剧情" });
+    }
     log("→ session.update plot=", plot.title, "json_bytes=", instructions.length);
   }
 
-  private sendItem(text: string): void {
-    this.send({
+  private sendItem(text: string, label: string, detail: string): void {
+    const ok = this.send({
       type: "conversation.item.create",
       item: {
         type: "message",
@@ -230,16 +291,20 @@ export class RealtimeWatch {
         content: [{ type: "input_text", text }],
       },
     });
+    if (ok) {
+      this.onTimeline?.({ type: "system", label, detail });
+    }
     log("→ item.create", text.slice(0, 80));
   }
 
-  private send(body: Record<string, unknown>): void {
+  private send(body: Record<string, unknown>): boolean {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       log("send skipped, ws not open", body.type);
-      return;
+      return false;
     }
     const payload = { event_id: newId(), ...body };
     this.ws.send(JSON.stringify(payload));
+    return true;
   }
 
   private async startMic(): Promise<void> {
@@ -324,7 +389,10 @@ export class RealtimeWatch {
       log("skip image: ring empty");
       return;
     }
-    this.send({ type: "input_image_buffer.append", image: best.b64 });
+    const ok = this.send({ type: "input_image_buffer.append", image: best.b64 });
+    if (ok) {
+      this.onTimeline?.({ type: "system", label: "截图已发送", detail: `JPEG ${best.raw}B` });
+    }
     log(
       "→ image_buffer jpeg=",
       best.raw,

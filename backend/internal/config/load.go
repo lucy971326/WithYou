@@ -17,6 +17,8 @@ func Load() (Config, error) {
 		QwenPlotModel:     envOr("QWEN_PLOT_MODEL", DefaultQwenPlotModel),
 		QwenRealtimeModel: envOr("QWEN_REALTIME_MODEL", DefaultQwenRealtimeModel),
 		QwenRealtimeURL:   envOr("QWEN_REALTIME_URL", "wss://dashscope-intl.aliyuncs.com/api-ws/v1/realtime"),
+		QwenRealtimeVoice: envOr("QWEN_REALTIME_VOICE", DefaultQwenRealtimeVoice),
+		QwenVoiceAPIURL:   envOr("QWEN_VOICE_API_URL", DefaultQwenVoiceAPIURL),
 	}
 	return cfg, nil
 }

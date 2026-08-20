@@ -3,21 +3,88 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>WithYou</title>
+    <title>WithYou - AI 陪看</title>
   </head>
   <body>
     <div id="app">
-      <header>
-        <h1>WithYou</h1>
-        <button type="button" id="open-btn">打开视频</button>
-        <span id="status"></span>
-      </header>
-      <main>
-        <div id="stage">
-          <video id="player" controls playsinline></video>
-          <div id="subtitles"></div>
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark">WY</span>
+          <div class="brand-copy">
+            <h1>WithYou</h1>
+            <p class="tagline">边看边聊的 AI 陪看</p>
+          </div>
         </div>
-        <p id="empty">点「打开视频」，在系统窗口里选一部带软字幕的 mkv / mp4。浏览器直接解原片，不解的编码（HEVC / 10bit）会只有声音。</p>
+        <div class="topbar-right">
+          <div id="status" class="status-pill">
+            <span class="status-dot"></span>
+            <span id="status-text">未连接</span>
+          </div>
+          <button id="open-btn" type="button">打开视频</button>
+        </div>
+      </header>
+
+      <main>
+        <section class="workspace">
+          <div class="stage-wrap">
+            <div id="empty" class="empty">
+              <div class="empty-inner">
+                <span class="empty-mark">WY</span>
+                <h2>和 AI 一起看一部片</h2>
+                <button id="empty-open-btn" type="button">选择视频开始陪看</button>
+              </div>
+            </div>
+            <div id="stage" class="stage is-hidden">
+              <video id="player" controls playsinline></video>
+              <div id="subtitles"></div>
+              <div id="media-meta" class="media-meta"></div>
+            </div>
+          </div>
+
+          <aside class="sidebar">
+            <section class="panel">
+              <header class="panel-head">
+                <span class="panel-title">陪看助手</span>
+                <span id="assistant-state" class="state-badge">待机</span>
+              </header>
+              <div class="panel-body">
+                <p id="assistant-status" class="assistant-status">打开视频后开始陪看</p>
+              </div>
+            </section>
+
+            <section class="panel panel-transcript">
+              <header class="panel-head">
+                <span class="panel-title">对话记录</span>
+                <button id="clear-transcript" class="ghost-btn" type="button">清空</button>
+              </header>
+              <div class="panel-body">
+                <div id="transcript-list" class="transcript-list"></div>
+              </div>
+            </section>
+
+            <section class="panel">
+              <header class="panel-head">
+                <span class="panel-title">音色</span>
+                <span id="voice-name" class="voice-name">甜甜 Tina</span>
+              </header>
+              <div class="panel-body">
+                <select id="voice-select" aria-label="选择音色"></select>
+                <p id="voice-desc" class="voice-desc">默认音色加载中…</p>
+              </div>
+            </section>
+
+            <section class="panel">
+              <header class="panel-head">
+                <span class="panel-title">现在看到哪</span>
+              </header>
+              <div class="panel-body">
+                <div id="plot-title" class="plot-title">还没富化剧情</div>
+                <div id="current-beat" class="current-beat">随播放进度更新</div>
+                <div id="beat-detail" class="beat-detail"></div>
+              </div>
+            </section>
+          </aside>
+        </section>
       </main>
     </div>
     <script type="module" src="/src/main.ts"></script>

@@ -8,6 +8,7 @@ import (
 	"withyou/internal/library"
 	"withyou/internal/plot"
 	"withyou/internal/realtime"
+	"withyou/internal/transcript"
 )
 
 func main() {
@@ -23,14 +24,18 @@ func main() {
 		QwenModel:  cfg.QwenPlotModel,
 	})
 	rt := realtime.New(realtime.Dependencies{
-		APIKey: cfg.QwenAPIKey,
-		Model:  cfg.QwenRealtimeModel,
-		URL:    cfg.QwenRealtimeURL,
+		APIKey:      cfg.QwenAPIKey,
+		Model:       cfg.QwenRealtimeModel,
+		URL:         cfg.QwenRealtimeURL,
+		Voice:       cfg.QwenRealtimeVoice,
+		VoiceAPIURL: cfg.QwenVoiceAPIURL,
 	})
+	tr := transcript.New(transcript.Dependencies{Media: lib.Media})
 	mux := http.NewServeMux()
 	lib.HTTP.Register(mux)
 	plt.HTTP.Register(mux)
 	rt.HTTP.Register(mux)
+	tr.HTTP.Register(mux)
 	if cfg.QwenAPIKey == "" {
 		log.Printf("realtime: QWEN_API_KEY empty, /api/realtime will 503")
 	}
