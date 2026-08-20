@@ -20,7 +20,13 @@ type HTTP struct {
 // Register 挂 HTTP 入口。
 func (h *HTTP) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/realtime", h.handleWS)
+	mux.HandleFunc("GET /api/realtime/prompt", h.handlePrompt)
 	mux.HandleFunc("GET /api/voices", h.handleVoices)
+}
+
+func (h *HTTP) handlePrompt(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(currentPrompt())
 }
 
 // handleVoices 返回可选项：官方预置音色 + 账号下的克隆音色。

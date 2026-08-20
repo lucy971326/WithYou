@@ -34,10 +34,13 @@ WS 握手（Bearer key，国际站）
       "input":  { "format": { "type": "pcm", "sample_rate": 24000 } },
       "output": { "format": { "type": "pcm", "sample_rate": 24000 } }
     },
-    "instructions": "<人设 + 当前已知剧情，见 §4>",
+    "instructions": "<前端从 /api/realtime/prompt 获取的后端模板，填入当前已知剧情>",
     "turn_detection": {
       "type": "semantic_vad",
       "threshold": 0.5,
+      "prefix_padding_ms": 500,
+      "create_response": true,
+      "interrupt_response": true,
       "silence_duration_ms": 800
     }
   }
@@ -60,7 +63,7 @@ WS 握手（Bearer key，国际站）
 
 | type | V0 | 谁发 | 字段 | 何时 |
 |------|----|------|------|------|
-| `session.update` | ✅ | 前端或 Go | `session` | 收到 `session.created` 之后立刻。人设写这里，段切不重发 |
+| `session.update` | ✅ | 前端或 Go | `session` | 收到 `session.created` 之后立刻。基础人格来自后端 `/api/realtime/prompt`，段切不重发 |
 | `input_audio_buffer.append` | ✅ | 前端 | `audio` = base64 PCM | `session.updated` 之后，约每 100ms 一块 |
 | `input_image_buffer.append` | ✅ | 前端 | `image` = JPEG base64 | `speech_started` 时，取开口前 500ms 那帧 |
 | `response.cancel` | ✅ | 前端 | 无 | barge-in：用户开口且 AI 还在说。若云端 `interrupt_response=true` 已自动掐，重复 cancel 可能回 `error`，忽略即可 |
@@ -116,10 +119,10 @@ Go 中继原样转发。前端按 type 分流。
 | `error` | 亮出来；`invalid_request_error` 多半是我们发错事件 |
 | `session.created` | 紧接着发 `session.update` |
 | `session.updated` | 打开「可以推麦 / 可以塞图」门闩 |
-| `input_audio_buffer.speech_started` | ① 从环形缓冲取 500ms 前 JPEG → `input_image_buffer.append` ② 若 AI 在说话：停播 + 可选 `response.cancel` |
+| `input_audio_buffer.speech_started` | ① 从环形缓冲取 500ms 前 JPEG → `input_image_buffer.append` ② 若云端响应仍在生成，发 `response.cancel` ③ 无论云端是否已 `response.done`，都清掉浏览器本地排队音频 |
 | `input_audio_buffer.speech_stopped` | 本轮图必须已经发出 |
 | `response.created` | 标记 AI 开始说，视频原声 duck 50% |
-| `response.audio.delta` | base64 PCM 排队进 Web Audio（24kHz） |
+| `response.audio.delta` | base64 PCM 先做 160ms 预缓冲，再按连续时间轴排队进 Web Audio（24kHz） |
 | `response.audio.done` | 本段音频结束 |
 | `response.audio_transcript.delta` | 字幕条（AI 在说啥） |
 | `response.audio_transcript.done` | 字幕定稿 |

@@ -12,7 +12,7 @@
           <span class="brand-mark">WY</span>
           <div class="brand-copy">
             <h1>WithYou</h1>
-            <p class="tagline">边看边聊的 AI 陪看</p>
+            <p class="tagline">边看边聊的陪伴</p>
           </div>
         </div>
         <div class="topbar-right">
@@ -20,6 +20,13 @@
             <span class="status-dot"></span>
             <span id="status-text">未连接</span>
           </div>
+          <button id="theme-toggle" class="icon-btn" type="button" aria-label="切换主题">
+            <span id="theme-icon" aria-hidden="true">
+              <i class="theme-icon theme-icon-sun" data-lucide="sun"></i>
+              <i class="theme-icon theme-icon-moon" data-lucide="moon"></i>
+            </span>
+            <span id="theme-label">主题</span>
+          </button>
           <button id="open-btn" type="button">打开视频</button>
         </div>
       </header>
@@ -42,32 +49,75 @@
           </div>
 
           <aside class="sidebar">
-            <section class="panel">
-              <header class="panel-head">
-                <span class="panel-title">陪看助手</span>
-                <span id="assistant-state" class="state-badge">待机</span>
-              </header>
-              <div class="panel-body">
-                <p id="assistant-status" class="assistant-status">打开视频后开始陪看</p>
+            <section id="presence-card" class="presence-card" data-state="headphone-required">
+              <div class="presence-main">
+                <div id="presence-orb" class="presence-orb" aria-hidden="true"></div>
+                <div class="presence-copy">
+                  <span class="presence-kicker">陪看状态</span>
+                  <strong id="assistant-state" class="presence-state">等待耳机</strong>
+                  <p id="assistant-status" class="presence-status">请连接耳机后开始陪看</p>
+                </div>
+              </div>
+              <div class="presence-actions">
+                <button id="enable-watch-btn" class="secondary-btn" type="button" disabled>
+                  连接耳机后开始
+                </button>
+                <button
+                  id="mic-toggle"
+                  class="mic-btn"
+                  type="button"
+                  aria-label="静音麦克风"
+                  aria-pressed="false"
+                  disabled
+                >
+                  <span class="mic-icon" aria-hidden="true">
+                    <i class="mic-icon-on" data-lucide="mic"></i>
+                    <i class="mic-icon-off" data-lucide="mic-off"></i>
+                  </span>
+                  <span id="mic-toggle-label">麦克风</span>
+                </button>
               </div>
             </section>
 
             <section class="panel panel-transcript">
               <header class="panel-head">
-                <span class="panel-title">对话记录</span>
+                <button
+                  id="transcript-toggle"
+                  class="panel-toggle"
+                  type="button"
+                  aria-expanded="false"
+                  aria-controls="transcript-body"
+                >
+                  <span class="panel-title">对话记录</span>
+                  <span id="transcript-count" class="panel-meta">空</span>
+                  <span class="panel-chevron" aria-hidden="true">
+                    <i data-lucide="chevron-down"></i>
+                  </span>
+                </button>
                 <button id="clear-transcript" class="ghost-btn" type="button">清空</button>
               </header>
-              <div class="panel-body">
+              <div id="transcript-body" class="panel-body" hidden>
                 <div id="transcript-list" class="transcript-list"></div>
               </div>
             </section>
 
             <section class="panel">
               <header class="panel-head">
-                <span class="panel-title">音色</span>
-                <span id="voice-name" class="voice-name">甜甜 Tina</span>
+                <button
+                  id="voice-toggle"
+                  class="panel-toggle"
+                  type="button"
+                  aria-expanded="false"
+                  aria-controls="voice-body"
+                >
+                  <span class="panel-title">音色</span>
+                  <span id="voice-name" class="panel-meta">甜甜 Tina</span>
+                  <span class="panel-chevron" aria-hidden="true">
+                    <i data-lucide="chevron-down"></i>
+                  </span>
+                </button>
               </header>
-              <div class="panel-body">
+              <div id="voice-body" class="panel-body" hidden>
                 <select id="voice-select" aria-label="选择音色"></select>
                 <p id="voice-desc" class="voice-desc">默认音色加载中…</p>
               </div>
@@ -75,9 +125,21 @@
 
             <section class="panel">
               <header class="panel-head">
-                <span class="panel-title">现在看到哪</span>
+                <button
+                  id="plot-toggle"
+                  class="panel-toggle"
+                  type="button"
+                  aria-expanded="false"
+                  aria-controls="plot-body"
+                >
+                  <span class="panel-title">现在看到哪</span>
+                  <span id="plot-preview" class="panel-meta">随播放进度更新</span>
+                  <span class="panel-chevron" aria-hidden="true">
+                    <i data-lucide="chevron-down"></i>
+                  </span>
+                </button>
               </header>
-              <div class="panel-body">
+              <div id="plot-body" class="panel-body" hidden>
                 <div id="plot-title" class="plot-title">还没富化剧情</div>
                 <div id="current-beat" class="current-beat">随播放进度更新</div>
                 <div id="beat-detail" class="beat-detail"></div>
@@ -86,6 +148,29 @@
           </aside>
         </section>
       </main>
+
+      <div
+        id="headphone-gate"
+        class="gate-backdrop is-hidden"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="gate-title"
+      >
+        <div class="gate-card">
+          <div class="gate-icon" aria-hidden="true">
+            <i data-lucide="headphones"></i>
+          </div>
+          <p class="gate-kicker">开始陪看前</p>
+          <h2 id="gate-title">请先连接耳机</h2>
+          <p>
+            动漫里的对白也可能被麦克风听见。连接耳机后，AI 才能稳定区分你和影片中的声音。
+          </p>
+          <div class="gate-actions">
+            <button id="headphone-confirm" type="button">我已连接耳机，开始陪看</button>
+            <button id="headphone-later" class="ghost-btn" type="button">暂不开启</button>
+          </div>
+        </div>
+      </div>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

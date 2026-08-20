@@ -1,11 +1,21 @@
 import "./style.css";
-import { RealtimeWatch, type PlotDoc, type SubSegment, type TimelineEvent } from "./realtime";
+import {
+  RealtimeWatch,
+  type PlotDoc,
+  type PresenceState,
+  type SubSegment,
+  type TimelineEvent,
+} from "./realtime";
+import { ChevronDown, createIcons, Headphones, Mic, MicOff, Moon, Sun } from "lucide";
+
+createIcons({ icons: { ChevronDown, Headphones, Mic, MicOff, Moon, Sun } });
 
 const openBtn = document.querySelector<HTMLButtonElement>("#open-btn")!;
 const emptyOpenBtn = document.querySelector<HTMLButtonElement>("#empty-open-btn")!;
 const statusText = document.querySelector<HTMLSpanElement>("#status-text")!;
 const assistantState = document.querySelector<HTMLSpanElement>("#assistant-state")!;
 const assistantStatus = document.querySelector<HTMLParagraphElement>("#assistant-status")!;
+const presenceCard = document.querySelector<HTMLElement>("#presence-card")!;
 const player = document.querySelector<HTMLVideoElement>("#player")!;
 const stage = document.querySelector<HTMLDivElement>("#stage")!;
 const subEl = document.querySelector<HTMLDivElement>("#subtitles")!;
@@ -19,6 +29,16 @@ const currentBeatEl = document.querySelector<HTMLDivElement>("#current-beat")!;
 const beatDetailEl = document.querySelector<HTMLDivElement>("#beat-detail")!;
 const transcriptList = document.querySelector<HTMLDivElement>("#transcript-list")!;
 const clearTranscriptBtn = document.querySelector<HTMLButtonElement>("#clear-transcript")!;
+const transcriptCount = document.querySelector<HTMLSpanElement>("#transcript-count")!;
+const plotPreview = document.querySelector<HTMLSpanElement>("#plot-preview")!;
+const themeToggle = document.querySelector<HTMLButtonElement>("#theme-toggle")!;
+const themeLabel = document.querySelector<HTMLSpanElement>("#theme-label")!;
+const enableWatchBtn = document.querySelector<HTMLButtonElement>("#enable-watch-btn")!;
+const micToggle = document.querySelector<HTMLButtonElement>("#mic-toggle")!;
+const micToggleLabel = document.querySelector<HTMLSpanElement>("#mic-toggle-label")!;
+const headphoneGate = document.querySelector<HTMLDivElement>("#headphone-gate")!;
+const headphoneConfirmBtn = document.querySelector<HTMLButtonElement>("#headphone-confirm")!;
+const headphoneLaterBtn = document.querySelector<HTMLButtonElement>("#headphone-later")!;
 
 type Cue = { start_sec: number; end_sec: number; text: string };
 type VoiceOption = {
@@ -42,6 +62,7 @@ type OpenResponse = {
   browserSafe: boolean;
 };
 type ErrorResponse = { error: string };
+type PromptResponse = { version: string; instructions: string };
 type SubtitleDoc = { format: string; count: number; cues: Cue[] };
 type EnrichResponse = {
   title: string;
@@ -72,6 +93,9 @@ let transcript: TranscriptEntry[] = [];
 let userDraftId: string | null = null;
 let aiDraftId: string | null = null;
 let persistQueue: Promise<void> = Promise.resolve();
+let headphoneConfirmed = false;
+let plotReady = false;
+let micMuted = false;
 
 openBtn.addEventListener("click", () => {
   void openVideo();
@@ -107,6 +131,36 @@ clearTranscriptBtn.addEventListener("click", () => {
   void clearTranscript();
 });
 
+themeToggle.addEventListener("click", () => {
+  const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+  applyTheme(next);
+  localStorage.setItem("withyou-theme", next);
+});
+
+enableWatchBtn.addEventListener("click", () => {
+  showHeadphoneGate();
+});
+
+headphoneConfirmBtn.addEventListener("click", () => {
+  void confirmHeadphonesAndStart();
+});
+
+headphoneLaterBtn.addEventListener("click", () => {
+  hideHeadphoneGate();
+  assistantState.textContent = "等待耳机";
+  assistantStatus.textContent = plotReady ? "剧情已准备好，连接耳机后开始陪看" : "剧情准备中…";
+});
+
+micToggle.addEventListener("click", () => {
+  micMuted = !micMuted;
+  watch?.setMuted(micMuted);
+  updateMicButton();
+});
+
+bindCollapsible("#transcript-toggle", "#transcript-body");
+bindCollapsible("#voice-toggle", "#voice-body");
+bindCollapsible("#plot-toggle", "#plot-body");
+initTheme();
 void loadVoices();
 renderTranscript();
 
@@ -198,14 +252,22 @@ async function openVideo(): Promise<void> {
     empty.classList.add("is-hidden");
     stage.classList.remove("is-hidden");
     cues = [];
+    plotReady = false;
+    headphoneConfirmed = false;
+    micMuted = false;
+    hideHeadphoneGate();
+    enableWatchBtn.disabled = true;
+    micToggle.disabled = true;
+    updateMicButton();
     subEl.textContent = "";
     watch?.stop();
     watch = null;
     assistantState.textContent = "待机";
-    assistantState.dataset.state = "idle";
     assistantStatus.textContent = "正在准备字幕与剧情…";
+    setPresenceState("connecting");
     plotTitleEl.textContent = "还没富化剧情";
     currentBeatEl.textContent = "随播放进度更新";
+    plotPreview.textContent = "随播放进度更新";
     beatDetailEl.textContent = "";
     userDraftId = null;
     aiDraftId = null;
@@ -253,50 +315,165 @@ async function loadPlot(): Promise<void> {
     }
     plotTitleEl.textContent = body.title || "未命名";
     const via = body.cached ? "缓存" : "Qwen";
-    statusText.textContent = `剧情 ${body.major_count} 段 / ${body.sub_count} 节（${via}），连接陪看`;
-    await startRealtime();
+    statusText.textContent = `剧情 ${body.major_count} 段 / ${body.sub_count} 节（${via}），等待耳机确认`;
+    plotReady = true;
+    enableWatchBtn.disabled = false;
+    setPresenceState("headphone-required");
+    assistantStatus.textContent = "剧情已准备好，连接耳机后开始陪看";
+    showHeadphoneGate();
   } catch (err) {
     statusText.textContent = err instanceof Error ? err.message : "富化失败";
   }
 }
 
+async function confirmHeadphonesAndStart(): Promise<void> {
+  if (!plotReady || headphoneConfirmed) {
+    return;
+  }
+  headphoneConfirmed = true;
+  headphoneConfirmBtn.disabled = true;
+  headphoneLaterBtn.disabled = true;
+  enableWatchBtn.disabled = true;
+  hideHeadphoneGate();
+  await startRealtime();
+}
+
 async function startRealtime(): Promise<void> {
-  statusText.textContent = "连接 Realtime…";
+  statusText.textContent = "正在连接…";
+  setPresenceState("connecting");
+  let nextWatch: RealtimeWatch | null = null;
   try {
-    const resp = await fetch("/api/plot/enrich");
-    const plot = (await resp.json()) as PlotDoc & ErrorResponse;
-    if (!resp.ok) {
-      statusText.textContent = plot.error || "无剧情";
-      return;
+    // 必须发生在“开始陪看”的点击链路里，先解锁音频，再等待网络和 WS。
+    nextWatch = new RealtimeWatch(player, onRealtimeStatus, paintBeat, onTimeline, onPresence);
+    watch = nextWatch;
+    nextWatch.setVoice(currentVoice);
+    await nextWatch.unlockAudio();
+
+    const [promptResp, plotResp] = await Promise.all([
+      fetch("/api/realtime/prompt"),
+      fetch("/api/plot/enrich"),
+    ]);
+    const prompt = (await promptResp.json()) as PromptResponse & ErrorResponse;
+    if (!promptResp.ok || !prompt.instructions) {
+      throw new Error(prompt.error || "陪看提示词加载失败");
     }
-    watch = new RealtimeWatch(player, onRealtimeStatus, paintBeat, onTimeline);
-    watch.setVoice(currentVoice);
-    await watch.start(plot);
+    const plot = (await plotResp.json()) as PlotDoc & ErrorResponse;
+    if (!plotResp.ok) {
+      throw new Error(plot.error || "剧情上下文加载失败");
+    }
+    nextWatch.setPromptTemplate(prompt.instructions);
+    await nextWatch.start(plot);
+    micToggle.disabled = false;
   } catch (err) {
-    statusText.textContent = err instanceof Error ? err.message : "Realtime 失败";
+    statusText.textContent = err instanceof Error ? err.message : "连接失败";
+    nextWatch?.stop();
+    watch = null;
+    setPresenceState("offline");
+    assistantStatus.textContent = "连接失败，可以重新尝试";
+    headphoneConfirmed = false;
+    enableWatchBtn.disabled = false;
+    micToggle.disabled = true;
   }
 }
 
 function onRealtimeStatus(s: string): void {
   statusText.textContent = s;
   assistantStatus.textContent = s;
-  if (s.includes("可说话")) {
-    assistantState.textContent = "陪看中";
-    assistantState.dataset.state = "live";
-  } else if (s.includes("已连上")) {
-    assistantState.textContent = "连接中";
-    assistantState.dataset.state = "pending";
-  } else if (s.includes("断开")) {
-    assistantState.textContent = "离线";
-    assistantState.dataset.state = "off";
-  } else {
-    assistantState.textContent = "待机";
-    assistantState.dataset.state = "idle";
+}
+
+function onPresence(state: PresenceState): void {
+  const labels: Record<PresenceState, string> = {
+    "headphone-required": "等待耳机",
+    connecting: "连接中",
+    idle: "陪看中",
+    listening: "正在听你说",
+    thinking: "想一想",
+    speaking: "正在回应",
+    muted: "麦克风已静音",
+    offline: "已离线",
+  };
+  const details: Record<PresenceState, string> = {
+    "headphone-required": plotReady ? "剧情已准备好，连接耳机后开始陪看" : "打开视频后开始陪看",
+    connecting: "正在连接…",
+    idle: "可以说话了",
+    listening: "小球会跟着你的声音跳动",
+    thinking: "正在整理你的话…",
+    speaking: "正在回应，随时可以打断",
+    muted: "麦克风已静音，点击恢复",
+    offline: "连接已断开",
+  };
+  presenceCard.dataset.state = state;
+  assistantState.textContent = labels[state];
+  assistantStatus.textContent = details[state];
+  micToggle.disabled = !watch || state === "headphone-required" || state === "offline";
+  updateMicButton();
+}
+
+function setPresenceState(state: PresenceState): void {
+  onPresence(state);
+}
+
+function updateMicButton(): void {
+  const muted = micMuted;
+  micToggle.setAttribute("aria-pressed", String(muted));
+  micToggle.setAttribute("aria-label", muted ? "恢复麦克风" : "静音麦克风");
+  micToggle.classList.toggle("is-muted", muted);
+  micToggleLabel.textContent = muted ? "已静音" : "麦克风";
+}
+
+function showHeadphoneGate(): void {
+  if (!plotReady || headphoneConfirmed) {
+    return;
   }
+  headphoneConfirmBtn.disabled = false;
+  headphoneLaterBtn.disabled = false;
+  headphoneGate.classList.remove("is-hidden");
+  setPresenceState("headphone-required");
+  window.setTimeout(() => headphoneConfirmBtn.focus(), 0);
+}
+
+function hideHeadphoneGate(): void {
+  headphoneGate.classList.add("is-hidden");
+}
+
+function bindCollapsible(toggleSelector: string, bodySelector: string): void {
+  const toggle = document.querySelector<HTMLButtonElement>(toggleSelector);
+  const body = document.querySelector<HTMLDivElement>(bodySelector);
+  if (!toggle || !body) {
+    return;
+  }
+  const panel = toggle.closest<HTMLElement>(".panel");
+  const apply = (expanded: boolean) => {
+    toggle.setAttribute("aria-expanded", String(expanded));
+    body.hidden = !expanded;
+    panel?.classList.toggle("is-expanded", expanded);
+  };
+  toggle.addEventListener("click", () => {
+    apply(toggle.getAttribute("aria-expanded") !== "true");
+  });
+  apply(false);
+}
+
+function initTheme(): void {
+  const saved = localStorage.getItem("withyou-theme");
+  if (saved === "dark" || saved === "light") {
+    applyTheme(saved);
+    return;
+  }
+  const systemDark = window.matchMedia?.("(prefers-color-scheme: dark)")?.matches ?? true;
+  applyTheme(systemDark ? "dark" : "light");
+}
+
+function applyTheme(theme: "dark" | "light"): void {
+  document.documentElement.dataset.theme = theme;
+  const dark = theme === "dark";
+  themeLabel.textContent = dark ? "浅色" : "暗色";
+  themeToggle.setAttribute("aria-label", dark ? "切换到浅色主题" : "切换到暗色主题");
 }
 
 function paintBeat(seg: SubSegment): void {
   currentBeatEl.textContent = seg.beat;
+  plotPreview.textContent = seg.beat;
   beatDetailEl.textContent = [
     `剧情：${seg.summary}`,
     `台词：${seg.key_dialogue}`,
@@ -460,6 +637,7 @@ async function persistEntry(entry: TranscriptEntry): Promise<void> {
 
 function renderTranscript(): void {
   transcriptList.textContent = "";
+  transcriptCount.textContent = transcript.length > 0 ? `${transcript.length} 条` : "空";
   if (transcript.length === 0) {
     const empty = document.createElement("p");
     empty.className = "transcript-empty";
