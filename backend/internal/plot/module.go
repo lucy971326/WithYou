@@ -4,9 +4,10 @@ import "withyou/internal/library"
 
 // Dependencies 是 plot 需要的外部能力。
 type Dependencies struct {
-	Media      *library.Media
-	QwenAPIKey string
-	QwenModel  string
+	Media       *library.Media
+	QwenAPIKey  string
+	QwenModel   string
+	QwenBaseURL string
 }
 
 // Module 组装抽字幕 + 富化。
@@ -27,7 +28,7 @@ func New(deps Dependencies) *Module {
 	parser := &Parser{}
 	extractor := &Extractor{media: deps.Media, parser: parser, state: s}
 	cache := newCache()
-	client, model, ready := newClient(deps.QwenAPIKey, deps.QwenModel)
+	client, model, ready := newClient(deps.QwenAPIKey, deps.QwenModel, deps.QwenBaseURL)
 	enricher := &Enricher{
 		media:  deps.Media,
 		state:  s,

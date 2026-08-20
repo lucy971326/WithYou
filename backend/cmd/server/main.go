@@ -19,9 +19,10 @@ func main() {
 
 	lib := library.New()
 	plt := plot.New(plot.Dependencies{
-		Media:      lib.Media,
-		QwenAPIKey: cfg.QwenAPIKey,
-		QwenModel:  cfg.QwenPlotModel,
+		Media:       lib.Media,
+		QwenAPIKey:  cfg.QwenAPIKey,
+		QwenModel:   cfg.QwenPlotModel,
+		QwenBaseURL: cfg.QwenPlotBaseURL,
 	})
 	rt := realtime.New(realtime.Dependencies{
 		APIKey:      cfg.QwenAPIKey,

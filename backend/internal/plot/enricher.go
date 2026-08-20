@@ -137,13 +137,13 @@ func buildUserPrompt(title string, cues []Cue) string {
 	return b.String()
 }
 
-func newClient(apiKey, model string) (openai.Client, string, bool) {
+func newClient(apiKey, model, baseURL string) (openai.Client, string, bool) {
 	if apiKey == "" {
 		return openai.Client{}, model, false
 	}
 	client := openai.NewClient(
 		option.WithAPIKey(apiKey),
-		option.WithBaseURL("https://dashscope-intl.aliyuncs.com/compatible-mode/v1"),
+		option.WithBaseURL(baseURL),
 		option.WithRequestTimeout(10*time.Minute),
 	)
 	return client, model, true
